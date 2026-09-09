@@ -20,9 +20,17 @@ def _sample_window():
         end_dt=end,
         avg_temperature=18.0,
         avg_apparent_temperature=17.0,
+        min_temperature=16.0,
+        max_temperature=19.0,
+        min_apparent_temperature=15.0,
+        max_apparent_temperature=18.0,
+        min_precipitation_probability=5.0,
         max_precipitation_probability=10.0,
         total_precipitation=0.0,
+        peak_precip_dt=None,
+        min_wind_speed=8.0,
         max_wind_speed=12.0,
+        min_wind_gust=15.0,
         max_wind_gust=20.0,
         weather_codes={1},
         safe=True,
@@ -96,7 +104,10 @@ def test_format_message_contains_all_sections():
         "🏁 Возвращение:",
         "📏 Расстояние: 14.0 км",
         "🌤 ПОГОДА",
-        "Температура:",
+        "07:00–09:00: +16…+19 °C, ощущается как +15…+18 °C",
+        "Вероятность осадков 5–10%.",
+        "Ветер 8–12 км/ч, порывы 15–20 км/ч",
+        "Почасовые данные Open-Meteo.",
         "🚦 МАРШРУТ",
         "Старт: Волковская площадь",
         '<a href="https://geojson.io/',
@@ -127,6 +138,32 @@ def test_format_message_contains_all_sections():
     # у "Смотровая площадка" нет категории и некорректная ссылка — строка простая, без <a href>
     viewpoint_line = next(line for line in text.splitlines() if "Смотровая площадка" in line)
     assert viewpoint_line == "- Смотровая площадка"
+
+    assert "Это лучшее погодное окно ближайших трёх дней." not in text
+
+
+def test_format_message_shows_best_window_note_when_auto_selected():
+    window = _sample_window()
+    route = _sample_route()
+    text = format_message(window, route, None, "Объяснение.", auto_selected=True)
+    assert "Это лучшее погодное окно ближайших трёх дней." in text
+
+
+def test_format_message_uses_route_name_as_title():
+    window = _sample_window()
+    route = _sample_route()
+    route.name = "Петропавловский парк через Толбухинский мост"
+    text = format_message(window, route, None, "Объяснение.")
+    assert text.startswith("🚲 Петропавловский парк через Толбухинский мост")
+
+
+def test_precipitation_formatting_zero_probability():
+    from services.message import _format_precipitation
+
+    window = _sample_window()
+    window.min_precipitation_probability = 0.0
+    window.max_precipitation_probability = 0.0
+    assert _format_precipitation(window) == "Осадки не ожидаются (вероятность 0%)."
 
 
 def test_format_message_no_food_available():

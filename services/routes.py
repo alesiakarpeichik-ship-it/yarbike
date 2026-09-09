@@ -61,6 +61,7 @@ class RouteResult:
     unpaved_percentage: float  # доля маршрута НЕ по асфальту/бетону/плитке, 0-100
     seed: int
     start_name: str
+    name: str = ""  # уникальное название маршрута, см. generate_route_name()
 
 
 def choose_start_point(last_start_name: str | None) -> dict[str, Any]:
@@ -199,6 +200,73 @@ def _compute_unpaved_percentage(properties: dict[str, Any]) -> float:
     return total
 
 
+# Ключевые слова в названиях улиц/объектов ORS, по которым распознаётся
+# заметный ориентир для названия маршрута — только реальные названия из
+# ответа API, ничего не выдумывается.
+LANDMARK_KEYWORDS = ["парк", "монастырь", "кремль", "площадь", "набережная", "стрелка", "сквер", "заповедник"]
+BRIDGE_KEYWORDS = ["мост"]
+
+DIRECTION_NAMES = [
+    "Северный",
+    "Северо-Восточный",
+    "Восточный",
+    "Юго-Восточный",
+    "Южный",
+    "Юго-Западный",
+    "Западный",
+    "Северо-Западный",
+]
+
+
+def _direction_name(coordinates: list[tuple[float, float]]) -> str:
+    """Направление маршрута относительно старта — по смещению центра
+    масс всех точек петли, для запасного варианта названия."""
+    if len(coordinates) < 2:
+        return "Городской"
+
+    start_lon, start_lat = coordinates[0]
+    centroid_lon = sum(lon for lon, _ in coordinates) / len(coordinates)
+    centroid_lat = sum(lat for _, lat in coordinates) / len(coordinates)
+
+    start_x, start_y = _project_to_local_meters(start_lon, start_lat, start_lat)
+    centroid_x, centroid_y = _project_to_local_meters(centroid_lon, centroid_lat, start_lat)
+    delta_x, delta_y = centroid_x - start_x, centroid_y - start_y
+
+    if abs(delta_x) < 50 and abs(delta_y) < 50:
+        return "Центральный"
+
+    angle = math.degrees(math.atan2(delta_x, delta_y)) % 360
+    index = round(angle / 45) % 8
+    return DIRECTION_NAMES[index]
+
+
+def generate_route_name(route_segments: list[tuple[str, float]], coordinates: list[tuple[float, float]]) -> str:
+    """Уникальное название маршрута: по самому заметному ориентиру на пути
+    (парк, монастырь, набережная и т.п. — реальное название из ORS), плюс
+    мост, если он есть и отличается от ориентира. Без ориентиров — название
+    по направлению петли относительно старта."""
+    landmarks = [
+        (name, dist)
+        for name, dist in route_segments
+        if any(keyword in name.lower() for keyword in LANDMARK_KEYWORDS)
+    ]
+    bridges = [
+        (name, dist)
+        for name, dist in route_segments
+        if any(keyword in name.lower() for keyword in BRIDGE_KEYWORDS)
+    ]
+
+    if landmarks:
+        primary = max(landmarks, key=lambda item: item[1])[0]
+        if bridges:
+            bridge = max(bridges, key=lambda item: item[1])[0]
+            if bridge != primary:
+                return f"{primary} через {bridge}"
+        return primary
+
+    return f"{_direction_name(coordinates)} городской круг"
+
+
 def parse_route(raw: dict[str, Any], seed: int, start_name: str = "") -> RouteResult:
     features = raw.get("features")
     if not features:
@@ -238,6 +306,7 @@ def parse_route(raw: dict[str, Any], seed: int, start_name: str = "") -> RouteRe
         unpaved_percentage=_compute_unpaved_percentage(properties),
         seed=seed,
         start_name=start_name,
+        name=generate_route_name(street_segments, coordinates),
     )
 
 

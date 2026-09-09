@@ -194,10 +194,9 @@ async def generate_route_message(
         )
     else:
         explanation = (
-            "Этот день выбран как самый безопасный и комфортный из ближайших трёх утр: "
-            "без грозы, сильного дождя, льда и опасных порывов ветра. Маршрут длиной "
-            f"{route.distance_m / 1000:.1f} км построен так, чтобы спокойно вернуться "
-            f"на {route.start_name} не позднее {config.RETURN_DEADLINE.strftime('%H:%M')}."
+            "Погода в этот день безопасна и комфортнее, чем в ближайшие альтернативы. "
+            f"Маршрут длиной {route.distance_m / 1000:.1f} км построен так, чтобы спокойно "
+            f"вернуться на {route.start_name} не позднее {config.RETURN_DEADLINE.strftime('%H:%M')}."
         )
     if routed_via_food and food_match:
         explanation += f" Маршрут специально проложен через «{food_match.name}», чтобы позавтракать по пути."
@@ -205,7 +204,9 @@ async def generate_route_message(
     attraction_places = attractions.load_attractions()
     attraction_matches = attractions.find_attractions_near_route(attraction_places, route.coordinates)
 
-    return message_service.format_message(window, route, food_match, explanation, attraction_matches)
+    return message_service.format_message(
+        window, route, food_match, explanation, attraction_matches, auto_selected=forced_window is None
+    )
 
 
 async def _handle_route_request(

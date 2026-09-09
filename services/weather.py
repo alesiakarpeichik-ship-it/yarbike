@@ -51,9 +51,17 @@ class WeatherWindow:
     end_dt: datetime
     avg_temperature: float
     avg_apparent_temperature: float
+    min_temperature: float
+    max_temperature: float
+    min_apparent_temperature: float
+    max_apparent_temperature: float
+    min_precipitation_probability: float
     max_precipitation_probability: float
     total_precipitation: float
+    peak_precip_dt: datetime | None  # час с наибольшей вероятностью осадков, если она > 0
+    min_wind_speed: float
     max_wind_speed: float
+    min_wind_gust: float
     max_wind_gust: float
     weather_codes: set[int]
     safe: bool
@@ -156,10 +164,16 @@ def _evaluate_window(
     avg_temp = sum(e.temperature for e in subset) / len(subset)
     avg_apparent = sum(e.apparent_temperature for e in subset) / len(subset)
     max_precip_prob = max(e.precipitation_probability for e in subset)
+    min_precip_prob = min(e.precipitation_probability for e in subset)
     total_precip = sum(e.precipitation for e in subset)
     max_wind_speed = max(e.wind_speed for e in subset)
     max_wind_gust = max(e.wind_gust for e in subset)
     codes = {e.weather_code for e in subset}
+
+    peak_precip_dt = None
+    if max_precip_prob > 0:
+        peak_entry = max(subset, key=lambda e: (e.precipitation_probability, e.precipitation))
+        peak_precip_dt = peak_entry.dt
 
     comfort_temp_ref = 18.0
     score = (
@@ -176,9 +190,17 @@ def _evaluate_window(
         end_dt=end_dt,
         avg_temperature=avg_temp,
         avg_apparent_temperature=avg_apparent,
+        min_temperature=min(e.temperature for e in subset),
+        max_temperature=max(e.temperature for e in subset),
+        min_apparent_temperature=min(e.apparent_temperature for e in subset),
+        max_apparent_temperature=max(e.apparent_temperature for e in subset),
+        min_precipitation_probability=min_precip_prob,
         max_precipitation_probability=max_precip_prob,
         total_precipitation=total_precip,
+        peak_precip_dt=peak_precip_dt,
+        min_wind_speed=min(e.wind_speed for e in subset),
         max_wind_speed=max_wind_speed,
+        min_wind_gust=min(e.wind_gust for e in subset),
         max_wind_gust=max_wind_gust,
         weather_codes=codes,
         safe=safe,

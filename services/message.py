@@ -60,6 +60,60 @@ def _format_duration(seconds: float) -> str:
     return f"{minutes} мин"
 
 
+def _format_temp_range(min_v: float, max_v: float) -> str:
+    min_r, max_r = round(min_v), round(max_v)
+    if min_r == max_r:
+        return f"{min_r:+.0f} °C"
+    return f"{min_r:+.0f}…{max_r:+.0f} °C"
+
+
+def _format_wind_range(min_v: float, max_v: float) -> str:
+    min_r, max_r = round(min_v), round(max_v)
+    if min_r == max_r:
+        return f"{min_r:.0f} км/ч"
+    return f"{min_r:.0f}–{max_r:.0f} км/ч"
+
+
+def _format_precipitation(window: WeatherWindow) -> str:
+    if window.max_precipitation_probability <= 0:
+        return "Осадки не ожидаются (вероятность 0%)."
+
+    min_p, max_p = round(window.min_precipitation_probability), round(window.max_precipitation_probability)
+    text = (
+        f"Вероятность осадков {max_p:.0f}%."
+        if min_p == max_p
+        else f"Вероятность осадков {min_p:.0f}–{max_p:.0f}%."
+    )
+
+    if (
+        window.peak_precip_dt is not None
+        and window.max_precipitation_probability >= config.DIFFICULTY_NOTABLE_RAIN_PROBABILITY_PCT
+    ):
+        text += f" Ближе к {window.peak_precip_dt.strftime('%H:%M')} риск выше."
+
+    if window.total_precipitation > 0:
+        text += f" Ожидается до {window.total_precipitation:.1f} мм."
+
+    return text
+
+
+def _format_weather_block(window: WeatherWindow, auto_selected: bool) -> list[str]:
+    lines = [
+        "🌤 ПОГОДА",
+        f"{window.start_dt.strftime('%H:%M')}–{window.end_dt.strftime('%H:%M')}: "
+        f"{_format_temp_range(window.min_temperature, window.max_temperature)}, "
+        f"ощущается как "
+        f"{_format_temp_range(window.min_apparent_temperature, window.max_apparent_temperature)}",
+        _format_precipitation(window),
+        f"Ветер {_format_wind_range(window.min_wind_speed, window.max_wind_speed)}, "
+        f"порывы {_format_wind_range(window.min_wind_gust, window.max_wind_gust)}",
+    ]
+    if auto_selected:
+        lines.append("Это лучшее погодное окно ближайших трёх дней.")
+    lines.append("Почасовые данные Open-Meteo.")
+    return lines
+
+
 def _compute_difficulty(route: RouteResult, window: WeatherWindow) -> tuple[str, str]:
     """Уровень сложности по реальным данным: доля непокрытых асфальтом
     участков маршрута (ORS) + вероятность дождя и порывы ветра в выбранном
@@ -104,35 +158,31 @@ def format_message(
     food: FoodMatch | None,
     explanation: str,
     attractions: list[AttractionMatch] | None = None,
+    auto_selected: bool = False,
 ) -> str:
     departure_dt = window.start_dt
     return_dt = departure_dt + timedelta(seconds=route.duration_s)
     weekday_name = WEEKDAY_NAMES_RU[departure_dt.weekday()]
     date_str = departure_dt.strftime("%d.%m.%Y")
     distance_km = route.distance_m / 1000
+    route_title = route.name if route.name else "Утренняя велопрогулка по Ярославлю"
 
     difficulty_level, difficulty_explanation = _compute_difficulty(route, window)
     map_link = build_route_map_link(route)
 
     lines = [
-        "🚲 Утренняя велопрогулка по Ярославлю",
+        f"🚲 {_esc(route_title)}",
         f"📅 День и дата: {weekday_name}, {date_str}",
         f"⏰ Выезд: {departure_dt.strftime('%H:%M')}",
         f"🏁 Возвращение: {return_dt.strftime('%H:%M')}",
         f"📏 Расстояние: {distance_km:.1f} км",
         f"⏱ Расчётное время: {_format_duration(route.duration_s)}",
         "",
-        "🌤 ПОГОДА",
-        f"Температура: {window.avg_temperature:.0f} °C",
-        f"Ощущается: {window.avg_apparent_temperature:.0f} °C",
-        f"Вероятность осадков: {window.max_precipitation_probability:.0f}%",
-        f"Количество осадков: {window.total_precipitation:.1f} мм",
-        f"Ветер: {window.max_wind_speed:.0f} км/ч",
-        f"Максимальные порывы: {window.max_wind_gust:.0f} км/ч",
-        "",
-        "🚦 МАРШРУТ",
-        f"Старт: {_esc(route.start_name)}",
     ]
+    lines.extend(_format_weather_block(window, auto_selected))
+    lines.append("")
+    lines.append("🚦 МАРШРУТ")
+    lines.append(f"Старт: {_esc(route.start_name)}")
 
     if map_link:
         lines.append(f'<a href="{_esc(map_link)}">Маршрут на карте</a>')

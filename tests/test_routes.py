@@ -9,6 +9,7 @@ from services.routes import (
     choose_start_point,
     compute_target_distance_km,
     first_leg_duration_s,
+    generate_route_name,
     is_too_similar,
     parse_route,
     route_signature,
@@ -63,6 +64,34 @@ def test_parse_route_computes_unpaved_percentage():
     # В _sample_geojson: value=3 (асфальт, покрытие) 80%, value=11 (грунт) 20%
     route = parse_route(_sample_geojson(), seed=1)
     assert route.unpaved_percentage == 20.0
+
+
+def test_parse_route_sets_route_name():
+    route = parse_route(_sample_geojson(), seed=1)
+    assert route.name  # непустое, реальный алгоритм должен что-то вернуть
+
+
+def test_generate_route_name_uses_landmark():
+    segments = [("Первомайская улица", 500.0), ("Петропавловский парк", 800.0)]
+    coords = [(39.0, 57.0), (39.01, 57.01)]
+    assert generate_route_name(segments, coords) == "Петропавловский парк"
+
+
+def test_generate_route_name_combines_landmark_and_bridge():
+    segments = [
+        ("Первомайская улица", 500.0),
+        ("Петропавловский парк", 800.0),
+        ("Толбухинский мост", 300.0),
+    ]
+    coords = [(39.0, 57.0), (39.01, 57.01)]
+    assert generate_route_name(segments, coords) == "Петропавловский парк через Толбухинский мост"
+
+
+def test_generate_route_name_falls_back_to_direction_without_landmark():
+    segments = [("Первомайская улица", 500.0), ("Советская улица", 800.0)]
+    # старт на юге маршрута, остальные точки заметно севернее
+    coords = [(39.0, 57.0), (39.0, 57.05), (39.01, 57.05), (39.0, 57.0)]
+    assert generate_route_name(segments, coords) == "Северный городской круг"
 
 
 def test_parse_route_builds_street_segments_merging_unnamed_steps():
