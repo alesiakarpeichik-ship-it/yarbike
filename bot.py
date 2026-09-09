@@ -56,7 +56,7 @@ def _start_point_keyboard() -> InlineKeyboardMarkup:
         for i, point in enumerate(config.START_POINTS)
     ]
     buttons.append(
-        [InlineKeyboardButton(text="📍 Произвольный старт", callback_data=CUSTOM_START_CALLBACK)]
+        [InlineKeyboardButton(text="📍 Выбрать место старта", callback_data=CUSTOM_START_CALLBACK)]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
