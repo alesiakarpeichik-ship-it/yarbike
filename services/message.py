@@ -5,6 +5,7 @@ import html
 from datetime import date, timedelta
 
 import config
+from services.attractions import AttractionMatch
 from services.food import FoodMatch
 from services.routes import RouteResult, build_route_map_link
 from services.weather import WeatherWindow
@@ -64,6 +65,7 @@ def format_message(
     route: RouteResult,
     food: FoodMatch | None,
     explanation: str,
+    attractions: list[AttractionMatch] | None = None,
 ) -> str:
     departure_dt = window.start_dt
     return_dt = departure_dt + timedelta(seconds=route.duration_s)
@@ -125,6 +127,19 @@ def format_message(
         )
     else:
         lines.append("Открытой столовой рядом с маршрутом в это время нет")
+
+    lines.append("")
+    lines.append("🗺 ЧТО ПОСМОТРЕТЬ ПО ДОРОГЕ")
+    if attractions:
+        for place in attractions:
+            category_part = f" ({_esc(place.category)})" if place.category else ""
+            if place.yandex_url.startswith("http"):
+                link_part = f' — <a href="{_esc(place.yandex_url)}">на карте</a>'
+            else:
+                link_part = ""
+            lines.append(f"- {_esc(place.name)}{category_part}{link_part}")
+    else:
+        lines.append("Интересных мест рядом с маршрутом не нашлось")
 
     lines.extend(["", _esc(explanation)])
 

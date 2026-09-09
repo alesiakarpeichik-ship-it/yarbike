@@ -87,6 +87,13 @@ FOOD_MAX_DISTANCE_M = 700.0
 # проложили через неё (а не просто проверили постфактум, что она рядом).
 MAX_FOOD_WAYPOINT_DISTANCE_M = 4000.0
 
+# --- Достопримечательности ---
+# Одноразовая выгрузка из OpenStreetMap (см. scripts/fetch_attractions.py),
+# бот не обращается к OpenStreetMap во время работы.
+ATTRACTIONS_CSV_PATH = BASE_DIR / "attractions.csv"
+ATTRACTION_MAX_DISTANCE_M = 400.0
+MAX_ATTRACTIONS_DISPLAY = 3
+
 # --- Хранилище ---
 DATA_DIR = BASE_DIR / "data"
 STORAGE_FILE = DATA_DIR / "storage.json"

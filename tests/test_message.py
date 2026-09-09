@@ -2,6 +2,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import config
+from services.attractions import AttractionMatch
 from services.food import FoodMatch
 from services.message import format_message, format_unsafe_message
 from services.routes import RouteResult
@@ -69,7 +70,23 @@ def test_format_message_contains_all_sections():
         yandex_url="https://yandex.ru/maps/1",
         distance_m=150.0,
     )
-    text = format_message(window, route, food, "Тестовое объяснение выбора.")
+    attractions = [
+        AttractionMatch(
+            name="Ярославский музей-заповедник",
+            category="музей",
+            address="",
+            yandex_url="https://yandex.ru/maps/?text=museum",
+            distance_m=120.0,
+        ),
+        AttractionMatch(
+            name="Смотровая площадка",
+            category="",
+            address="",
+            yandex_url="не указано",
+            distance_m=300.0,
+        ),
+    ]
+    text = format_message(window, route, food, "Тестовое объяснение выбора.", attractions)
 
     for fragment in [
         "🚲 Утренняя велопрогулка по Ярославлю",
@@ -95,6 +112,9 @@ def test_format_message_contains_all_sections():
         "🍽 ГДЕ ПОЕСТЬ",
         "Название: Столовая №1",
         'Яндекс Карты: <a href="https://yandex.ru/maps/1">открыть</a>',
+        "🗺 ЧТО ПОСМОТРЕТЬ ПО ДОРОГЕ",
+        '- Ярославский музей-заповедник (музей) — <a href="https://yandex.ru/maps/?text=museum">на карте</a>',
+        "- Смотровая площадка",
         "Тестовое объяснение выбора.",
     ]:
         assert fragment in text, fragment
@@ -102,6 +122,9 @@ def test_format_message_contains_all_sections():
     assert "Точка старта на карте" not in text
     # самая короткая улица (Переулок А, 50 м) не должна попасть в топ-7
     assert "Переулок А" not in text
+    # у "Смотровая площадка" нет категории и некорректная ссылка — строка простая, без <a href>
+    viewpoint_line = next(line for line in text.splitlines() if "Смотровая площадка" in line)
+    assert viewpoint_line == "- Смотровая площадка"
 
 
 def test_format_message_no_food_available():
@@ -109,6 +132,7 @@ def test_format_message_no_food_available():
     route = _sample_route()
     text = format_message(window, route, None, "Объяснение.")
     assert "Открытой столовой рядом с маршрутом в это время нет" in text
+    assert "Интересных мест рядом с маршрутом не нашлось" in text
 
 
 def test_format_message_escapes_html_special_chars():

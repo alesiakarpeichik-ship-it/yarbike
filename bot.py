@@ -23,7 +23,7 @@ from aiogram.types import (
 import config
 import storage
 from scheduler import setup_scheduler
-from services import food, message as message_service, routes, weather
+from services import attractions, food, message as message_service, routes, weather
 from services.food import haversine_m
 from services.routes import RouteResult, RouteServiceError
 from services.weather import DayWeatherResult, WeatherServiceError, WeatherWindow
@@ -56,7 +56,7 @@ def _start_point_keyboard() -> InlineKeyboardMarkup:
         for i, point in enumerate(config.START_POINTS)
     ]
     buttons.append(
-        [InlineKeyboardButton(text="📍 Произвольный старт", callback_data=CUSTOM_START_CALLBACK)]
+        [InlineKeyboardButton(text="📍 Выбрать место старта", callback_data=CUSTOM_START_CALLBACK)]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -202,7 +202,10 @@ async def generate_route_message(
     if routed_via_food and food_match:
         explanation += f" Маршрут специально проложен через «{food_match.name}», чтобы позавтракать по пути."
 
-    return message_service.format_message(window, route, food_match, explanation)
+    attraction_places = attractions.load_attractions()
+    attraction_matches = attractions.find_attractions_near_route(attraction_places, route.coordinates)
+
+    return message_service.format_message(window, route, food_match, explanation, attraction_matches)
 
 
 async def _handle_route_request(
