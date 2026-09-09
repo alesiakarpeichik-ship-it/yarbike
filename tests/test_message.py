@@ -46,7 +46,7 @@ SAMPLE_SEGMENTS = [
 ]
 
 
-def _sample_route():
+def _sample_route(unpaved_percentage=20.0):
     return RouteResult(
         geojson={},
         coordinates=[(39.89, 57.62), (39.90, 57.63)],
@@ -55,6 +55,7 @@ def _sample_route():
         street_names=[name for name, _ in SAMPLE_SEGMENTS],
         street_segments=SAMPLE_SEGMENTS,
         surface_summary=["асфальт — 80%", "грунт — 20%"],
+        unpaved_percentage=unpaved_percentage,
         seed=123,
         start_name="Волковская площадь",
     )
@@ -108,6 +109,7 @@ def test_format_message_contains_all_sections():
         "6. Улица Д — 800 м",
         "7. Улица Ё — 400 м",
         "и ещё 2 участков",
+        "Уровень сложности: Лёгкий — Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается.",
         "Финиш: Волковская площадь",
         "🍽 ГДЕ ПОЕСТЬ",
         "Название: Столовая №1",
@@ -163,6 +165,33 @@ def test_format_message_shows_non_url_yandex_field_as_plain_text():
     text = format_message(window, route, food, "Объяснение.")
     assert "Яндекс Карты: нет карточки в Яндекс Картах" in text
     assert "<a href" not in text.split("ГДЕ ПОЕСТЬ")[1]
+
+
+def test_difficulty_medium_with_one_hard_factor():
+    window = _sample_window()
+    window.max_precipitation_probability = 45.0  # выше DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT
+    route = _sample_route(unpaved_percentage=5.0)
+    text = format_message(window, route, None, "Объяснение.")
+    assert "Уровень сложности: Средний — Учтите: высокая вероятность дождя." in text
+
+
+def test_difficulty_hard_with_two_factors():
+    window = _sample_window()
+    window.max_wind_gust = 40.0  # выше DIFFICULTY_STRONG_GUST_KMH
+    route = _sample_route(unpaved_percentage=30.0)  # выше DIFFICULTY_UNPAVED_THRESHOLD_PCT
+    text = format_message(window, route, None, "Объяснение.")
+    assert (
+        "Уровень сложности: Сложный — Учтите: грунтовое покрытие на части пути, сильный ветер."
+        in text
+    )
+
+
+def test_difficulty_mentions_soft_factors_without_raising_level():
+    window = _sample_window()
+    window.max_wind_gust = 28.0  # выше NOTABLE, ниже STRONG
+    route = _sample_route(unpaved_percentage=5.0)
+    text = format_message(window, route, None, "Объяснение.")
+    assert "Уровень сложности: Лёгкий — Учтите: заметный ветер." in text
 
 
 def test_format_unsafe_message():

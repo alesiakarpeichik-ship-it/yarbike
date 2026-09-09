@@ -60,6 +60,44 @@ def _format_duration(seconds: float) -> str:
     return f"{minutes} мин"
 
 
+def _compute_difficulty(route: RouteResult, window: WeatherWindow) -> tuple[str, str]:
+    """Уровень сложности по реальным данным: доля непокрытых асфальтом
+    участков маршрута (ORS) + вероятность дождя и порывы ветра в выбранном
+    окне (Open-Meteo). Не выдумывает ничего — только эти числа."""
+    score = 0
+    reasons: list[str] = []
+
+    if route.unpaved_percentage >= config.DIFFICULTY_UNPAVED_THRESHOLD_PCT:
+        score += 1
+        reasons.append("грунтовое покрытие на части пути")
+
+    if window.max_precipitation_probability >= config.DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT:
+        score += 1
+        reasons.append("высокая вероятность дождя")
+    elif window.max_precipitation_probability >= config.DIFFICULTY_NOTABLE_RAIN_PROBABILITY_PCT:
+        reasons.append("небольшая вероятность дождя")
+
+    if window.max_wind_gust >= config.DIFFICULTY_STRONG_GUST_KMH:
+        score += 1
+        reasons.append("сильный ветер")
+    elif window.max_wind_gust >= config.DIFFICULTY_NOTABLE_GUST_KMH:
+        reasons.append("заметный ветер")
+
+    if score >= 2:
+        level = "Сложный"
+    elif score == 1:
+        level = "Средний"
+    else:
+        level = "Лёгкий"
+
+    if reasons:
+        explanation = "Учтите: " + ", ".join(reasons) + "."
+    else:
+        explanation = "Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается."
+
+    return level, explanation
+
+
 def format_message(
     window: WeatherWindow,
     route: RouteResult,
@@ -73,11 +111,7 @@ def format_message(
     date_str = departure_dt.strftime("%d.%m.%Y")
     distance_km = route.distance_m / 1000
 
-    surface = (
-        ", ".join(route.surface_summary)
-        if route.surface_summary
-        else "данные о покрытии недоступны"
-    )
+    difficulty_level, difficulty_explanation = _compute_difficulty(route, window)
     map_link = build_route_map_link(route)
 
     lines = [
@@ -105,7 +139,7 @@ def format_message(
 
     lines.append("Основные точки и улицы:")
     lines.extend(_format_street_segments(route.street_segments))
-    lines.append(f"Особенности покрытия или сложности: {_esc(surface)}")
+    lines.append(f"Уровень сложности: {difficulty_level} — {difficulty_explanation}")
     lines.append(f"Финиш: {_esc(route.start_name)}")
     lines.append("")
     lines.append("🍽 ГДЕ ПОЕСТЬ")

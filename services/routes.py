@@ -40,6 +40,10 @@ SURFACE_LABELS = {
     18: "газонная решётка",
 }
 
+# Покрытия, которые считаются "твёрдыми/дорожными" для оценки сложности.
+# Всё остальное (гравий, грунт, песок, неизвестное и т.д.) — не asphalt-like.
+PAVED_SURFACE_VALUES = {1, 3, 4, 14}
+
 
 class RouteServiceError(Exception):
     """Ошибка получения или разбора маршрута."""
@@ -54,6 +58,7 @@ class RouteResult:
     street_names: list[str]
     street_segments: list[tuple[str, float]]  # (название, дистанция в метрах), по ходу движения
     surface_summary: list[str]
+    unpaved_percentage: float  # доля маршрута НЕ по асфальту/бетону/плитке, 0-100
     seed: int
     start_name: str
 
@@ -182,6 +187,18 @@ def _summarize_surface(properties: dict[str, Any]) -> list[str]:
     return result
 
 
+def _compute_unpaved_percentage(properties: dict[str, Any]) -> float:
+    extras = properties.get("extras", {})
+    surface = extras.get("surface")
+    if not surface:
+        return 0.0
+    total = 0.0
+    for item in surface.get("summary", []):
+        if item.get("value") not in PAVED_SURFACE_VALUES:
+            total += item.get("amount", 0.0)
+    return total
+
+
 def parse_route(raw: dict[str, Any], seed: int, start_name: str = "") -> RouteResult:
     features = raw.get("features")
     if not features:
@@ -218,6 +235,7 @@ def parse_route(raw: dict[str, Any], seed: int, start_name: str = "") -> RouteRe
         street_names=street_names,
         street_segments=street_segments,
         surface_summary=surface_summary,
+        unpaved_percentage=_compute_unpaved_percentage(properties),
         seed=seed,
         start_name=start_name,
     )

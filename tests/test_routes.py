@@ -59,6 +59,12 @@ def test_parse_route_extracts_streets_and_surface():
     assert route.seed == 42
 
 
+def test_parse_route_computes_unpaved_percentage():
+    # В _sample_geojson: value=3 (асфальт, покрытие) 80%, value=11 (грунт) 20%
+    route = parse_route(_sample_geojson(), seed=1)
+    assert route.unpaved_percentage == 20.0
+
+
 def test_parse_route_builds_street_segments_merging_unnamed_steps():
     route = parse_route(_sample_geojson(), seed=42)
     # безымянный шаг (50 м) присоединяется к предыдущему сегменту

@@ -80,6 +80,16 @@ ROUND_TRIP_POINTS = 3
 # остальные сворачиваются в одну итоговую строку.
 MAX_DISPLAY_STREET_SEGMENTS = 7
 
+# --- Уровень сложности маршрута ---
+# Пороги эвристические (как и ASSUMED_CYCLING_SPEED_KMH выше), считаются
+# по реальным данным маршрута (доля непокрытых асфальтом участков из ORS)
+# и погоды в выбранном окне (вероятность дождя, порывы ветра из Open-Meteo).
+DIFFICULTY_UNPAVED_THRESHOLD_PCT = 25.0
+DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT = 40.0
+DIFFICULTY_NOTABLE_RAIN_PROBABILITY_PCT = 20.0
+DIFFICULTY_STRONG_GUST_KMH = 35.0
+DIFFICULTY_NOTABLE_GUST_KMH = 25.0
+
 # --- Столовые ---
 FOOD_CSV_PATH = BASE_DIR / "food_places.csv"
 FOOD_MAX_DISTANCE_M = 700.0
