@@ -95,7 +95,7 @@ def test_format_message_contains_all_sections():
             distance_m=300.0,
         ),
     ]
-    text = format_message(window, route, food, "Тестовое объяснение выбора.", attractions)
+    text = format_message(window, route, food, attractions)
 
     for fragment in [
         "🚲 Утренняя велопрогулка по Ярославлю",
@@ -107,7 +107,6 @@ def test_format_message_contains_all_sections():
         "07:00–09:00: +16…+19 °C, ощущается как +15…+18 °C",
         "Вероятность осадков 5–10%.",
         "Ветер 8–12 км/ч, порывы 15–20 км/ч",
-        "Почасовые данные Open-Meteo.",
         "🚦 МАРШРУТ",
         "Старт: Волковская площадь",
         '<a href="https://geojson.io/',
@@ -120,15 +119,16 @@ def test_format_message_contains_all_sections():
         "6. Улица Д — 800 м",
         "7. Улица Ё — 400 м",
         "и ещё 2 участков",
-        "Уровень сложности: Лёгкий — Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается.",
         "Финиш: Волковская площадь",
+        "🔥 УРОВЕНЬ СЛОЖНОСТИ",
+        "Лёгкий (3/10)",
+        "Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается.",
         "🍽 ГДЕ ПОЕСТЬ",
         "Название: Столовая №1",
         'Яндекс Карты: <a href="https://yandex.ru/maps/1">открыть</a>',
         "🗺 ЧТО ПОСМОТРЕТЬ ПО ДОРОГЕ",
         '- Ярославский музей-заповедник (музей) — <a href="https://yandex.ru/maps/?text=museum">на карте</a>',
         "- Смотровая площадка",
-        "Тестовое объяснение выбора.",
     ]:
         assert fragment in text, fragment
 
@@ -140,12 +140,13 @@ def test_format_message_contains_all_sections():
     assert viewpoint_line == "- Смотровая площадка"
 
     assert "Это лучшее погодное окно ближайших трёх дней." not in text
+    assert "Почасовые данные Open-Meteo" not in text
 
 
 def test_format_message_shows_best_window_note_when_auto_selected():
     window = _sample_window()
     route = _sample_route()
-    text = format_message(window, route, None, "Объяснение.", auto_selected=True)
+    text = format_message(window, route, None, auto_selected=True)
     assert "Это лучшее погодное окно ближайших трёх дней." in text
 
 
@@ -153,7 +154,7 @@ def test_format_message_uses_route_name_as_title():
     window = _sample_window()
     route = _sample_route()
     route.name = "Петропавловский парк через Толбухинский мост"
-    text = format_message(window, route, None, "Объяснение.")
+    text = format_message(window, route, None)
     assert text.startswith("🚲 Петропавловский парк через Толбухинский мост")
 
 
@@ -169,9 +170,24 @@ def test_precipitation_formatting_zero_probability():
 def test_format_message_no_food_available():
     window = _sample_window()
     route = _sample_route()
-    text = format_message(window, route, None, "Объяснение.")
+    text = format_message(window, route, None)
     assert "Открытой столовой рядом с маршрутом в это время нет" in text
     assert "Интересных мест рядом с маршрутом не нашлось" in text
+
+
+def test_format_message_notes_food_routed_specifically():
+    window = _sample_window()
+    route = _sample_route()
+    food = FoodMatch(
+        name="Столовая №1",
+        address="ул. Свободы, 1",
+        hours_text="09:00-20:00",
+        yandex_url="https://yandex.ru/maps/1",
+        distance_m=0.0,
+        routed_specifically=True,
+    )
+    text = format_message(window, route, food)
+    assert "Маршрут проложен специально сюда, чтобы позавтракать по пути." in text
 
 
 def test_format_message_escapes_html_special_chars():
@@ -184,7 +200,7 @@ def test_format_message_escapes_html_special_chars():
         yandex_url="https://yandex.ru/maps/1",
         distance_m=100.0,
     )
-    text = format_message(window, route, food, "Объяснение.")
+    text = format_message(window, route, food)
     assert "Кафе <Тест> & Co" not in text
     assert "Кафе &lt;Тест&gt; &amp; Co" in text
 
@@ -199,36 +215,43 @@ def test_format_message_shows_non_url_yandex_field_as_plain_text():
         yandex_url="нет карточки в Яндекс Картах",
         distance_m=100.0,
     )
-    text = format_message(window, route, food, "Объяснение.")
+    text = format_message(window, route, food)
     assert "Яндекс Карты: нет карточки в Яндекс Картах" in text
     assert "<a href" not in text.split("ГДЕ ПОЕСТЬ")[1]
 
 
-def test_difficulty_medium_with_one_hard_factor():
+def test_difficulty_easy_zero_score():
     window = _sample_window()
-    window.max_precipitation_probability = 45.0  # выше DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT
-    route = _sample_route(unpaved_percentage=5.0)
-    text = format_message(window, route, None, "Объяснение.")
-    assert "Уровень сложности: Средний — Учтите: высокая вероятность дождя." in text
+    window.max_precipitation_probability = 0.0
+    window.max_wind_gust = 0.0
+    route = _sample_route(unpaved_percentage=0.0)
+    text = format_message(window, route, None)
+    assert "🔥 УРОВЕНЬ СЛОЖНОСТИ" in text
+    assert "Лёгкий (0/10)" in text
+    assert "Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается." in text
 
 
-def test_difficulty_hard_with_two_factors():
+def test_difficulty_medium_score():
     window = _sample_window()
-    window.max_wind_gust = 40.0  # выше DIFFICULTY_STRONG_GUST_KMH
+    window.max_precipitation_probability = 0.0
+    window.max_wind_gust = 20.0
     route = _sample_route(unpaved_percentage=30.0)  # выше DIFFICULTY_UNPAVED_THRESHOLD_PCT
-    text = format_message(window, route, None, "Объяснение.")
+    text = format_message(window, route, None)
+    assert "Средний (4/10)" in text
+    assert "Учтите: грунтовое покрытие на части пути." in text
+
+
+def test_difficulty_hard_score():
+    window = _sample_window()
+    window.max_precipitation_probability = 100.0  # выше DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT
+    window.max_wind_gust = 53.0  # выше DIFFICULTY_STRONG_GUST_KMH
+    route = _sample_route(unpaved_percentage=40.0)  # выше DIFFICULTY_UNPAVED_THRESHOLD_PCT
+    text = format_message(window, route, None)
+    assert "Сложный (10/10)" in text
     assert (
-        "Уровень сложности: Сложный — Учтите: грунтовое покрытие на части пути, сильный ветер."
+        "Учтите: грунтовое покрытие на части пути, высокая вероятность дождя, сильный ветер."
         in text
     )
-
-
-def test_difficulty_mentions_soft_factors_without_raising_level():
-    window = _sample_window()
-    window.max_wind_gust = 28.0  # выше NOTABLE, ниже STRONG
-    route = _sample_route(unpaved_percentage=5.0)
-    text = format_message(window, route, None, "Объяснение.")
-    assert "Уровень сложности: Лёгкий — Учтите: заметный ветер." in text
 
 
 def test_format_unsafe_message():

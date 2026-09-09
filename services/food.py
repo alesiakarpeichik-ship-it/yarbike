@@ -49,6 +49,7 @@ class FoodMatch:
     hours_text: str
     yandex_url: str
     distance_m: float
+    routed_specifically: bool = False  # маршрут был построен именно через это заведение
 
 
 @dataclass

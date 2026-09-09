@@ -110,53 +110,54 @@ def _format_weather_block(window: WeatherWindow, auto_selected: bool) -> list[st
     ]
     if auto_selected:
         lines.append("Это лучшее погодное окно ближайших трёх дней.")
-    lines.append("Почасовые данные Open-Meteo.")
     return lines
 
 
-def _compute_difficulty(route: RouteResult, window: WeatherWindow) -> tuple[str, str]:
+def _compute_difficulty(route: RouteResult, window: WeatherWindow) -> tuple[str, int, str]:
     """Уровень сложности по реальным данным: доля непокрытых асфальтом
     участков маршрута (ORS) + вероятность дождя и порывы ветра в выбранном
-    окне (Open-Meteo). Не выдумывает ничего — только эти числа."""
-    score = 0
+    окне (Open-Meteo). Числовая шкала 0-10 — взвешенная сумма по этим же
+    трём факторам, не выдумывает ничего сверх этих чисел."""
     reasons: list[str] = []
 
     if route.unpaved_percentage >= config.DIFFICULTY_UNPAVED_THRESHOLD_PCT:
-        score += 1
         reasons.append("грунтовое покрытие на части пути")
 
     if window.max_precipitation_probability >= config.DIFFICULTY_HIGH_RAIN_PROBABILITY_PCT:
-        score += 1
         reasons.append("высокая вероятность дождя")
     elif window.max_precipitation_probability >= config.DIFFICULTY_NOTABLE_RAIN_PROBABILITY_PCT:
         reasons.append("небольшая вероятность дождя")
 
     if window.max_wind_gust >= config.DIFFICULTY_STRONG_GUST_KMH:
-        score += 1
         reasons.append("сильный ветер")
     elif window.max_wind_gust >= config.DIFFICULTY_NOTABLE_GUST_KMH:
         reasons.append("заметный ветер")
 
-    if score >= 2:
-        level = "Сложный"
-    elif score == 1:
+    # 0-4 балла за грунт, 0-3 за дождь, 0-3 за порывы ветра — итого 0-10
+    unpaved_score = min(route.unpaved_percentage / 10, 4.0)
+    rain_score = min(window.max_precipitation_probability / 100 * 3, 3.0)
+    wind_score = min(window.max_wind_gust / config.MAX_SAFE_WIND_GUST_KMH * 3, 3.0)
+    score_10 = round(min(unpaved_score + rain_score + wind_score, 10.0))
+
+    if score_10 <= 3:
+        level = "Лёгкий"
+    elif score_10 <= 6:
         level = "Средний"
     else:
-        level = "Лёгкий"
+        level = "Сложный"
 
     if reasons:
         explanation = "Учтите: " + ", ".join(reasons) + "."
     else:
         explanation = "Асфальт, слабый ветер, без осадков — ничего осложняющего не ожидается."
 
-    return level, explanation
+    return level, score_10, explanation
 
 
 def format_message(
     window: WeatherWindow,
     route: RouteResult,
     food: FoodMatch | None,
-    explanation: str,
     attractions: list[AttractionMatch] | None = None,
     auto_selected: bool = False,
 ) -> str:
@@ -167,7 +168,7 @@ def format_message(
     distance_km = route.distance_m / 1000
     route_title = route.name if route.name else "Утренняя велопрогулка по Ярославлю"
 
-    difficulty_level, difficulty_explanation = _compute_difficulty(route, window)
+    difficulty_level, difficulty_score, difficulty_explanation = _compute_difficulty(route, window)
     map_link = build_route_map_link(route)
 
     lines = [
@@ -189,8 +190,11 @@ def format_message(
 
     lines.append("Основные точки и улицы:")
     lines.extend(_format_street_segments(route.street_segments))
-    lines.append(f"Уровень сложности: {difficulty_level} — {difficulty_explanation}")
     lines.append(f"Финиш: {_esc(route.start_name)}")
+    lines.append("")
+    lines.append("🔥 УРОВЕНЬ СЛОЖНОСТИ")
+    lines.append(f"{difficulty_level} ({difficulty_score}/10)")
+    lines.append(difficulty_explanation)
     lines.append("")
     lines.append("🍽 ГДЕ ПОЕСТЬ")
 
@@ -209,6 +213,8 @@ def format_message(
                 yandex_line,
             ]
         )
+        if food.routed_specifically:
+            lines.append("Маршрут проложен специально сюда, чтобы позавтракать по пути.")
     else:
         lines.append("Открытой столовой рядом с маршрутом в это время нет")
 
@@ -224,8 +230,6 @@ def format_message(
             lines.append(f"- {_esc(place.name)}{category_part}{link_part}")
     else:
         lines.append("Интересных мест рядом с маршрутом не нашлось")
-
-    lines.extend(["", _esc(explanation)])
 
     return "\n".join(lines)
 

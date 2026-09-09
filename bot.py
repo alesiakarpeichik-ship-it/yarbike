@@ -135,6 +135,7 @@ async def _try_build_route_via_food(
             hours_text=food.format_hours_text(candidate.place),
             yandex_url=(candidate.place.get("Ссылка на Яндекс Карты") or "").strip(),
             distance_m=0.0,
+            routed_specifically=True,
         )
         return attempt, food_match
 
@@ -165,12 +166,10 @@ async def generate_route_message(
     via_food = await _try_build_route_via_food(client, window, start_point, last_record, places)
     if via_food:
         route, food_match = via_food
-        routed_via_food = True
     else:
         route = await routes.build_route(client, window.start_dt, last_record, start_point)
         return_dt = window.start_dt + timedelta(seconds=route.duration_s)
         food_match = food.find_food_near_route(places, route.coordinates, return_dt)
-        routed_via_food = False
 
     storage.add_route_record(
         {
@@ -185,27 +184,11 @@ async def generate_route_message(
     with config.LAST_ROUTE_GEOJSON_FILE.open("w", encoding="utf-8") as f:
         json.dump(route.geojson, f, ensure_ascii=False, indent=2)
 
-    if forced_window is not None:
-        explanation = (
-            "Вы выбрали этот день сами — погода в это утро безопасна для велопрогулки: "
-            "без грозы, сильного дождя, льда и опасных порывов ветра. Маршрут длиной "
-            f"{route.distance_m / 1000:.1f} км построен так, чтобы спокойно вернуться "
-            f"на {route.start_name} не позднее {config.RETURN_DEADLINE.strftime('%H:%M')}."
-        )
-    else:
-        explanation = (
-            "Погода в этот день безопасна и комфортнее, чем в ближайшие альтернативы. "
-            f"Маршрут длиной {route.distance_m / 1000:.1f} км построен так, чтобы спокойно "
-            f"вернуться на {route.start_name} не позднее {config.RETURN_DEADLINE.strftime('%H:%M')}."
-        )
-    if routed_via_food and food_match:
-        explanation += f" Маршрут специально проложен через «{food_match.name}», чтобы позавтракать по пути."
-
     attraction_places = attractions.load_attractions()
     attraction_matches = attractions.find_attractions_near_route(attraction_places, route.coordinates)
 
     return message_service.format_message(
-        window, route, food_match, explanation, attraction_matches, auto_selected=forced_window is None
+        window, route, food_match, attraction_matches, auto_selected=forced_window is None
     )
 
 
