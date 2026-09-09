@@ -94,7 +94,7 @@ def test_format_message_contains_all_sections():
         "Финиш: Волковская площадь",
         "🍽 ГДЕ ПОЕСТЬ",
         "Название: Столовая №1",
-        "Яндекс Карты: https://yandex.ru/maps/1",
+        'Яндекс Карты: <a href="https://yandex.ru/maps/1">открыть</a>',
         "Тестовое объяснение выбора.",
     ]:
         assert fragment in text, fragment
@@ -124,6 +124,21 @@ def test_format_message_escapes_html_special_chars():
     text = format_message(window, route, food, "Объяснение.")
     assert "Кафе <Тест> & Co" not in text
     assert "Кафе &lt;Тест&gt; &amp; Co" in text
+
+
+def test_format_message_shows_non_url_yandex_field_as_plain_text():
+    window = _sample_window()
+    route = _sample_route()
+    food = FoodMatch(
+        name="Столовая №1",
+        address="ул. Свободы, 1",
+        hours_text="09:00-20:00",
+        yandex_url="нет карточки в Яндекс Картах",
+        distance_m=100.0,
+    )
+    text = format_message(window, route, food, "Объяснение.")
+    assert "Яндекс Карты: нет карточки в Яндекс Картах" in text
+    assert "<a href" not in text.split("ГДЕ ПОЕСТЬ")[1]
 
 
 def test_format_unsafe_message():

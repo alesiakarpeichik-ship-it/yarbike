@@ -110,13 +110,17 @@ def format_message(
 
     if food:
         arrival_str = return_dt.strftime("%H:%M")
+        if food.yandex_url.startswith("http"):
+            yandex_line = f'Яндекс Карты: <a href="{_esc(food.yandex_url)}">открыть</a>'
+        else:
+            yandex_line = f"Яндекс Карты: {_esc(food.yandex_url)}"
         lines.extend(
             [
                 f"Название: {_esc(food.name)}",
                 f"Адрес: {_esc(food.address)}",
                 f"Работает: {_esc(food.hours_text)}",
                 f"Предполагаемое время заезда: {arrival_str}",
-                f"Яндекс Карты: {_esc(food.yandex_url)}",
+                yandex_line,
             ]
         )
     else:
